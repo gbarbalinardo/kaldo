@@ -467,7 +467,21 @@ class Conductivity:
         else:
             scattering_inverse = np.linalg.inv(gamma_tensor)
         full_cond = np.zeros((n_phonons, 3, 3))
+
         for alpha in range(3):
+
+            n_phonons = self.n_phonons
+            physical_mode = self.phonons.physical_mode.reshape(n_phonons)
+            omega = self.phonons.omega.flatten()[physical_mode]
+            velocity = self.phonons.velocity.real.reshape((n_phonons, 3))[physical_mode, :]
+            heat_capacity = self.phonons.heat_capacity.flatten()[physical_mode]
+            sqr_heat_capacity = heat_capacity ** 0.5
+            v_new = velocity[:, alpha]
+            lambd_tensor = contract('m,m,mn,n->mn', sqr_heat_capacity,
+                                    v_new,
+                                    scattering_inverse,
+                                    1 / sqr_heat_capacity)
+
             self.calculate_lambda_tensor(alpha, scattering_inverse)
             forward_states = self._lambd > 0
             lambd_p = self._lambd[forward_states]
@@ -475,6 +489,7 @@ class Conductivity:
             only_lambd_plus[self._lambd < 0] = 0
             lambd_tilde = only_lambd_plus
             new_lambd = np.zeros_like(lambd_tilde)
+            correction = np.zeros_like(lambd_tilde)
             # using average
             # exp_tilde[self._lambd>0] = (length[alpha] + lambd_p * (-1 + np.exp(-length[alpha] / (lambd_p)))) * lambd_p/length[alpha]
             if length is not None:
@@ -482,20 +497,34 @@ class Conductivity:
                     leng = np.zeros_like(self._lambd)
                     leng[:] = length[alpha]
                     leng[self._lambd < 0] = 0
-                    new_lambd[self._lambd > 0] = (1 - np.exp(-length[alpha] / (lambd_p))) * lambd_p
+                    exp = np.exp(-length[alpha] / (lambd_p))
+                    new_lambd[self._lambd > 0] = (1 - exp)
+                    correction[self._lambd > 0] = exp
                     # exp_tilde[lambd<0] = (1 - np.exp(-length[0] / (-lambd_m))) * lambd_m
                 else:
                     new_lambd[self._lambd > 0] = lambd_p
             else:
                 new_lambd[self._lambd > 0] = lambd_p
             lambd_tilde = new_lambd
+
+
+
             for beta in range(3):
-                cond = 2 * contract('nl,l,lk,k,k->n',
+                cond = 2 * contract('nl,l,lk,km,m,m->n',
                                 self._psi,
                                 lambd_tilde,
                                 self._psi_inv,
+                                lambd_tensor,
                                 heat_capacity,
-                                velocity[:, beta],
+                                velocity[:, beta]
+                                )
+
+                cond += 2 * length[2] * contract('nl,l,lm,m,m->n',
+                                self._psi,
+                                correction,
+                                self._psi_inv,
+                                heat_capacity,
+                                velocity[:, beta]
                                 )
                 full_cond[physical_mode, alpha, beta] = cond
         return full_cond / (volume * n_k_points) * 1e22
