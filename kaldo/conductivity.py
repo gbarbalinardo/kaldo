@@ -472,7 +472,6 @@ class Conductivity:
 
             n_phonons = self.n_phonons
             physical_mode = self.phonons.physical_mode.reshape(n_phonons)
-            omega = self.phonons.omega.flatten()[physical_mode]
             velocity = self.phonons.velocity.real.reshape((n_phonons, 3))[physical_mode, :]
             heat_capacity = self.phonons.heat_capacity.flatten()[physical_mode]
             sqr_heat_capacity = heat_capacity ** 0.5
@@ -489,17 +488,18 @@ class Conductivity:
             only_lambd_plus[self._lambd < 0] = 0
             lambd_tilde = only_lambd_plus
             new_lambd = np.zeros_like(lambd_tilde)
-            correction = np.zeros_like(lambd_tilde)
+            length_reduced = np.zeros_like(lambd_tilde)
             # using average
             # exp_tilde[self._lambd>0] = (length[alpha] + lambd_p * (-1 + np.exp(-length[alpha] / (lambd_p)))) * lambd_p/length[alpha]
             if length is not None:
                 if length[alpha]:
                     leng = np.zeros_like(self._lambd)
                     leng[:] = length[alpha]
+                    length_reduced = length[alpha]
                     leng[self._lambd < 0] = 0
                     exp = np.exp(-length[alpha] / (lambd_p))
-                    new_lambd[self._lambd > 0] = (1 - exp)
-                    correction[self._lambd > 0] = exp
+                    new_lambd[self._lambd > 0] = (lambd_p - exp * lambd_p - exp * length_reduced)
+                    # correction[self._lambd > 0] = exp
                     # exp_tilde[lambd<0] = (1 - np.exp(-length[0] / (-lambd_m))) * lambd_m
                 else:
                     new_lambd[self._lambd > 0] = lambd_p
@@ -510,22 +510,22 @@ class Conductivity:
 
 
             for beta in range(3):
-                cond = 2 * contract('nl,l,lk,km,m,m->n',
+                cond = 2 * contract('nl,l,lk,k,k->n',
                                 self._psi,
                                 lambd_tilde,
                                 self._psi_inv,
-                                lambd_tensor,
+                                # lambd_tensor,
                                 heat_capacity,
                                 velocity[:, beta]
                                 )
 
-                cond += 2 * length[2] * contract('nl,l,lm,m,m->n',
-                                self._psi,
-                                correction,
-                                self._psi_inv,
-                                heat_capacity,
-                                velocity[:, beta]
-                                )
+                # cond += 2 * length[2] * contract('nl,l,lm,m,m->n',
+                #                 self._psi,
+                #                 correction,
+                #                 self._psi_inv,
+                #                 heat_capacity,
+                #                 velocity[:, beta]
+                #                 )
                 full_cond[physical_mode, alpha, beta] = cond
         return full_cond / (volume * n_k_points) * 1e22
 
