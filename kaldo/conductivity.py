@@ -351,7 +351,7 @@ class Conductivity:
         conductivity_per_mode = np.zeros((n_phonons, 3, 3))
         physical_mode = physical_mode.reshape(n_phonons)
         n_physical = physical_mode.sum()
-        conductivity_full = np.zeros((n_physical, n_physical, 3, 3))
+        conductivity_full = np.zeros((n_physical, n_physical, 3))
 
         velocity = velocity.reshape((n_phonons, 3))
         volume = np.linalg.det(self.phonons.atoms.cell)
@@ -367,44 +367,39 @@ class Conductivity:
                     if length[beta]:
                         gamma = gamma + 2 * np.abs(velocity[:, beta]) / length[beta]
             scattering_inverse = np.linalg.inv(scattering_matrix + np.diag(gamma[physical_mode]))
-            conductivity_full[:, :, :, beta] = contract('i,ia,ij,j->ija',
+            conductivity_full[:, :, :] = contract('i,ia,ij,j->ija',
                                                                       heat_capacity[physical_mode],
                                                                       velocity[physical_mode, :],
                                                                       scattering_inverse,
                                                                       velocity[physical_mode, beta]) / \
                                                              (volume * self.n_k_points) * 1e22
-            conductivity_per_mode[physical_mode] = conductivity_full.sum(axis=1)
-            # if beta==2:
-            #     print('beta=2')
-            #
-            #
-            #
-            #     gg = new_scattering.reshape(
-            #         (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
-            #
-            #     for ik in range(self.phonons.n_k_points):
-            #         for ik2 in range(self.phonons.n_k_points):
-            #
-            #             evect = self.phonons._eigensystem[ik][1:]
-            #             evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
-            #             gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
-            #                          gg[ik, :, ik2, :], evect_2)
-            #
-            #     n_atoms = self.phonons.n_atoms
-            #     gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
-            #
-            #     # at gamma
-            #     gg_red = gg[0, :, :, 0, :, :]
-            #     import matplotlib.pyplot as plt
-            #     plt.imshow(gg_red.real[:, 0, :, 2])
-            #     plt.show()
+            conductivity_per_mode[physical_mode, :, beta] = conductivity_full.sum(axis=1)
+            if beta==2:
+                print('beta=2')
+                new_cond = np.zeros((n_phonons, n_phonons))
+                new_cond[4:, 4:] = conductivity_full[:, :, 2]
 
-                # average
-                # gg_reduced = gg.sum(axis=-2)
-                # gg_reduced = gg_reduced.sum(axis=1)
-                # import matplotlib.pyplot as plt
-                # plt.imshow(gg_reduced.real[:, 0, :, 2])
-                # plt.show()
+
+
+                gg = new_cond.reshape(
+                    (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
+
+                for ik in range(self.phonons.n_k_points):
+                    for ik2 in range(self.phonons.n_k_points):
+
+                        evect = self.phonons._eigensystem[ik][1:]
+                        evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
+                        gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
+                                     gg[ik, :, ik2, :], evect_2)
+
+                n_atoms = self.phonons.n_atoms
+                gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
+                gg = gg.sum(axis=-2)
+                gg = gg.sum(axis=1)
+                # at gamma
+                import matplotlib.pyplot as plt
+                plt.imshow(gg[:, :, :, :].transpose(1, 0, 3, 2).reshape((self.n_k_points * 3, self.n_k_points * 3)).real)
+                plt.show()
 
 
         return conductivity_per_mode
