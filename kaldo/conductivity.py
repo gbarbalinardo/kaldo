@@ -10,6 +10,7 @@ from kaldo.observables.harmonic_with_q_temp import HarmonicWithQTemp
 from kaldo.helpers.logger import get_logger, log_size
 logging = get_logger()
 
+
 def calculate_conductivity_per_mode(heat_capacity, velocity, mfp, physical_mode, n_phonons):
     conductivity_per_mode = np.zeros((n_phonons, 3, 3))
     physical_mode = physical_mode.reshape(n_phonons)
@@ -346,10 +347,11 @@ class Conductivity:
         heat_capacity = self.phonons.heat_capacity.reshape((self.n_phonons))
         physical_mode = phonons.physical_mode.reshape(phonons.n_phonons)
         velocity = phonons.velocity.real.reshape((phonons.n_phonons, 3))
-        lambd = np.zeros_like(velocity)
         conductivity_per_mode = np.zeros((n_phonons, 3, 3))
         physical_mode = physical_mode.reshape(n_phonons)
         velocity = velocity.reshape((n_phonons, 3))
+        volume = np.linalg.det(self.phonons.atoms.cell)
+
         for alpha in range (3):
             scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
                                                                  is_rescaling_omega=True,
@@ -362,25 +364,12 @@ class Conductivity:
 
             scattering_matrix += np.diag(gamma[physical_mode])
             scattering_inverse = np.linalg.inv(scattering_matrix)
-
-            lambd[physical_mode, alpha] = scattering_inverse.dot(velocity[physical_mode, alpha])
-            if finite_size_method == 'caltech':
-                if length is not None:
-                    if length[alpha]:
-                        lambd[:, alpha] = mfp_caltech(lambd[:, alpha], velocity[:, alpha], length[alpha], physical_mode)
-            if finite_size_method == 'matthiessen':
-                if (self.length[alpha] is not None) and (self.length[alpha] != 0):
-                    lambd[physical_mode, alpha] = 1 / (
-                            np.sign(velocity[physical_mode, alpha]) / lambd[physical_mode, alpha] + 1 /
-                            np.array(self.length)[np.newaxis, alpha]) * np.sign(velocity[physical_mode, alpha])
-                else:
-                    lambd[physical_mode, alpha] = 1 / (
-                            np.sign(velocity[physical_mode, alpha]) / lambd[physical_mode, alpha]) * np.sign(
-                        velocity[physical_mode, alpha])
-
-                lambd[velocity[:, alpha] == 0, alpha] = 0
-
-
+            lambd = np.zeros_like(heat_capacity)
+            lambd[physical_mode] = scattering_inverse.dot(velocity[physical_mode, alpha])
+            conductivity_per_mode[physical_mode, :, alpha] = contract('i,ia,i->ia',
+                                                                      heat_capacity[physical_mode],
+                                                                      velocity[physical_mode, :],
+                                                                      lambd[physical_mode])
 
 
             # new_scattering = np.zeros((self.phonons.n_k_points * self.phonons.n_modes, self.phonons.n_k_points * self.phonons.n_modes))
@@ -412,14 +401,9 @@ class Conductivity:
             # plt.imshow(gg_reduced.real[:, 0, :, 2])
             # plt.show()
             #
+        conductivity_per_mode = conductivity_per_mode / (volume * self.n_k_points) * 1e22
 
-        conductivity_per_mode[physical_mode, :, :] = \
-            heat_capacity[physical_mode, np.newaxis, np.newaxis] * velocity[physical_mode, :, np.newaxis] * \
-            lambd[physical_mode, np.newaxis, :]
-        conductivity_per_mode = conductivity_per_mode * 1e22
-        volume = np.linalg.det(self.phonons.atoms.cell)
-        cond = conductivity_per_mode / (volume * self.n_k_points)
-        return cond
+        return conductivity_per_mode
 
 
     def calculate_lambda_tensor(self, alpha, scattering_inverse):
