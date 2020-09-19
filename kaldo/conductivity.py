@@ -10,6 +10,7 @@ from kaldo.observables.harmonic_with_q_temp import HarmonicWithQTemp
 from kaldo.helpers.logger import get_logger, log_size
 logging = get_logger()
 
+
 def calculate_conductivity_per_mode(heat_capacity, velocity, mfp, physical_mode, n_phonons):
     conductivity_per_mode = np.zeros((n_phonons, 3, 3))
     physical_mode = physical_mode.reshape(n_phonons)
@@ -43,11 +44,6 @@ def calculate_diffusivity(omega, sij_left, sij_right, diffusivity_bandwidth, phy
     kernel[:, mu_unphysical] = 0
     diffusivity = sij_left * kernel * sij_right
     return diffusivity
-
-
-def gamma_with_matthiessen(gamma, velocity, length):
-    gamma = gamma + 2 * np.abs(velocity) / length
-    return gamma
 
 
 def mfp_matthiessen(gamma, velocity, length, physical_mode):
@@ -163,6 +159,8 @@ class Conductivity:
             cond = self.calculate_conductivity_qhgk().reshape((self.n_phonons, 3, 3))
         elif (method == 'full'):
             cond = self.calculate_conductivity_full()
+        elif (method == 'inverse'):
+            cond = self.calculate_conductivity_inverse()
         elif method in other_avail_methods:
             lambd = self.mean_free_path
             conductivity_per_mode = calculate_conductivity_per_mode(self.phonons.heat_capacity.reshape((self.n_phonons)),
@@ -198,21 +196,19 @@ class Conductivity:
         if (method == 'qhgk'):
             logging.error('Mean free path not available for ' + str(method))
         elif method == 'rta':
-            cond = self._calculate_mfp_sc()
+            mfp = self._calculate_mfp_sc()
         elif method == 'sc':
-            cond = self._calculate_mfp_sc()
-        elif (method == 'inverse'):
-            cond = self.calculate_mfp_inverse()
+            mfp = self._calculate_mfp_sc()
         else:
             logging.error('Conductivity method not implemented')
 
         # folder = get_folder_from_label(phonons, '<temperature>/<statistics>/<third_bandwidth>')
         # save('cond', folder + '/' + method, cond.reshape(phonons.n_k_points, phonons.n_modes, 3, 3), \
         #      format=phonons.store_format['conductivity'])
-        sum = (cond.imag).sum()
+        sum = (mfp.imag).sum()
         if sum > 1e-3:
             logging.warning('The conductivity has an immaginary part. Sum(Im(k)) = ' + str(sum))
-        return cond.real
+        return mfp.real
 
 
     @property
@@ -302,6 +298,7 @@ class Conductivity:
                                        storage=self.storage,
                                        temperature=self.temperature,
                                        is_classic=self.is_classic,
+                                       is_nw=self.phonons.is_nw,
                                        is_unfolding=self.is_unfolding)
             heat_capacity_2d = phonon.heat_capacity_2d
             if phonons.n_modes > 100:
@@ -334,7 +331,7 @@ class Conductivity:
         return conductivity_per_mode * 1e22
 
 
-    def calculate_mfp_inverse(self):
+    def calculate_conductivity_inverse(self):
         """This method calculates the inverse of the mean free path for each phonon.
         The matrix returns k vectors for each mode and has units of inverse Angstroms.
 
@@ -346,40 +343,82 @@ class Conductivity:
         """
         length = self.length
         phonons = self.phonons
+        n_phonons = self.n_phonons
         finite_size_method = self.finite_length_method
+        heat_capacity = self.phonons.heat_capacity.reshape((self.n_phonons))
         physical_mode = phonons.physical_mode.reshape(phonons.n_phonons)
         velocity = phonons.velocity.real.reshape((phonons.n_phonons, 3))
-        lambd = np.zeros_like(velocity)
-        for alpha in range (3):
-            scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
-                                                                 is_rescaling_omega=True,
-                                                                 is_rescaling_population=False)
+        conductivity_per_mode = np.zeros((n_phonons, 3, 3))
+        physical_mode = physical_mode.reshape(n_phonons)
+        n_physical = physical_mode.sum()
+        conductivity_full = np.zeros((n_physical, n_physical, 3))
+
+        velocity = velocity.reshape((n_phonons, 3))
+        volume = np.linalg.det(self.phonons.atoms.cell)
+
+        scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
+                                                             is_rescaling_omega=True,
+                                                             is_rescaling_population=False)
+
+        # TODO: test with the symmetric gamma
+        evals_conv = np.linalg.eigvalsh(np.diag(1 / phonons.bandwidth.flatten()[physical_mode]).dot(scattering_matrix))
+        import matplotlib.pyplot as plt
+        plt.plot(evals_conv)
+        plt.show()
+        for beta in range(3):
             gamma = phonons.bandwidth.reshape(phonons.n_phonons)
             if finite_size_method == 'ms':
                 if length is not None:
-                    if length[alpha]:
-                        gamma = gamma_with_matthiessen(gamma, velocity[:, alpha],
-                                                       length[alpha])
+                    if length[beta]:
+                        gamma = gamma + 2 * np.abs(velocity[:, beta]) / length[beta]
+            scattering_inverse = np.linalg.inv(scattering_matrix + np.diag(gamma[physical_mode]))
+            conductivity_full[:, :, :] = contract('i,ia,ij,j->ija',
+                                                                      heat_capacity[physical_mode],
+                                                                      velocity[physical_mode, :],
+                                                                      scattering_inverse,
+                                                                      velocity[physical_mode, beta]) / \
+                                                             (volume * self.n_k_points) * 1e22
+            conductivity_per_mode[physical_mode, :, beta] = conductivity_full.sum(axis=1)
+            # if beta==2:
+            #     print('beta=2')
+            #     new_cond = np.zeros((n_phonons, n_phonons))
+            #     new_cond[4:, 4:] = conductivity_full[:, :, 2]
+            #
+            #
+            #
+            #     gg = new_cond.reshape(
+            #         (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
+            #
+            #     for ik in range(self.phonons.n_k_points):
+            #         for ik2 in range(self.phonons.n_k_points):
+            #
+            #             evect = self.phonons._eigensystem[ik][1:]
+            #             evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
+            #             gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
+            #                          gg[ik, :, ik2, :], evect_2)
+            #
+            #     n_atoms = self.phonons.n_atoms
+            #     gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
+            #
+            #     g_reduced = gg.sum(axis=3).sum(axis=0)
+            #     new_shape = g_reduced.shape[0] * g_reduced.shape[1]
+            #
+            #     g_reduced = g_reduced.transpose(1, 0, 3, 2).reshape((new_shape, new_shape))
+            #
+            #     import matplotlib.pyplot as plt
+            #     plt.imshow(g_reduced.real)
+            #     plt.show()
+            #
+            #
+            #     gg = gg.sum(axis=-2)
+            #     gg = gg.sum(axis=1)
+            #     # at gamma
+            #     import matplotlib.pyplot as plt
+            #     plt.imshow(gg[:, :, :, :].transpose(1, 0, 3, 2).reshape((self.n_k_points * 3, self.n_k_points * 3)).real)
+            #     plt.show()
 
-            scattering_matrix += np.diag(gamma[physical_mode])
-            scattering_inverse = np.linalg.inv(scattering_matrix)
-            lambd[physical_mode, alpha] = scattering_inverse.dot(velocity[physical_mode, alpha])
-            if finite_size_method == 'caltech':
-                if length is not None:
-                    if length[alpha]:
-                        lambd[:, alpha] = mfp_caltech(lambd[:, alpha], velocity[:, alpha], length[alpha], physical_mode)
-            if finite_size_method == 'matthiessen':
-                if (self.length[alpha] is not None) and (self.length[alpha] != 0):
-                    lambd[physical_mode, alpha] = 1 / (
-                            np.sign(velocity[physical_mode, alpha]) / lambd[physical_mode, alpha] + 1 /
-                            np.array(self.length)[np.newaxis, alpha]) * np.sign(velocity[physical_mode, alpha])
-                else:
-                    lambd[physical_mode, alpha] = 1 / (
-                            np.sign(velocity[physical_mode, alpha]) / lambd[physical_mode, alpha]) * np.sign(
-                        velocity[physical_mode, alpha])
 
-                lambd[velocity[:, alpha] == 0, alpha] = 0
-        return lambd
+        return conductivity_per_mode
 
 
     def calculate_lambda_tensor(self, alpha, scattering_inverse):

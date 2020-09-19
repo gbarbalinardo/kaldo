@@ -76,10 +76,12 @@ class HarmonicWithQ(Observable):
             _dynmat_derivatives = self.calculate_dynmat_derivatives(direction=2)
         return _dynmat_derivatives
 
+
     @lazy_property(label='<q_point>')
     def _dynmat_fourier(self):
         dynmat_fourier = self.calculate_dynmat_fourier()
         return dynmat_fourier
+
 
     @lazy_property(label='<q_point>')
     def _eigensystem(self):
@@ -269,6 +271,17 @@ class HarmonicWithQ(Observable):
         else:
             log_size(self._dynmat_fourier.shape, type=np.complex, name='eigensystem')
             esystem = tf.linalg.eigh(dyn_s)
+            # Test
+            # hermitian_evect = tf.math.conj(tf.transpose(esystem[1]))
+            # print(tf.linalg.norm(
+            #     contract('mj,ij,jn->mn', hermitian_evect,
+            #              self._dynmat_fourier, esystem[1])
+            #     - tf.linalg.diag(esystem[0])))
+            #
+            # print(tf.linalg.norm(
+            #     contract('mj,ij,jn->mn', esystem[1],
+            #              tf.linalg.diag(esystem[0]), hermitian_evect)
+            #     - self._dynmat_fourier))
             esystem = tf.concat(axis=0, values=(esystem[0][tf.newaxis, :], esystem[1]))
         return esystem
 
