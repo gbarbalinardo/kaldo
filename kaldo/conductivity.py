@@ -349,59 +349,62 @@ class Conductivity:
         velocity = phonons.velocity.real.reshape((phonons.n_phonons, 3))
         conductivity_per_mode = np.zeros((n_phonons, 3, 3))
         physical_mode = physical_mode.reshape(n_phonons)
+        n_physical = physical_mode.sum()
+        conductivity_full = np.zeros((n_physical, n_physical, 3, 3))
+
         velocity = velocity.reshape((n_phonons, 3))
         volume = np.linalg.det(self.phonons.atoms.cell)
 
-        for alpha in range (3):
-            scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
-                                                                 is_rescaling_omega=True,
-                                                                 is_rescaling_population=False)
+        scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
+                                                             is_rescaling_omega=True,
+                                                             is_rescaling_population=False)
+
+        for beta in range(3):
             gamma = phonons.bandwidth.reshape(phonons.n_phonons)
             if finite_size_method == 'ms':
                 if length is not None:
-                    if length[alpha]:
-                        gamma = gamma + 2 * np.abs(velocity[:, alpha]) / length[alpha]
-
-            scattering_matrix += np.diag(gamma[physical_mode])
-            scattering_inverse = np.linalg.inv(scattering_matrix)
-            lambd = np.zeros_like(heat_capacity)
-            lambd[physical_mode] = scattering_inverse.dot(velocity[physical_mode, alpha])
-            conductivity_per_mode[physical_mode, :, alpha] = contract('i,ia,i->ia',
+                    if length[beta]:
+                        gamma = gamma + 2 * np.abs(velocity[:, beta]) / length[beta]
+            scattering_inverse = np.linalg.inv(scattering_matrix + np.diag(gamma[physical_mode]))
+            conductivity_full[:, :, :, beta] = contract('i,ia,ij,j->ija',
                                                                       heat_capacity[physical_mode],
                                                                       velocity[physical_mode, :],
-                                                                      lambd[physical_mode])
+                                                                      scattering_inverse,
+                                                                      velocity[physical_mode, beta]) / \
+                                                             (volume * self.n_k_points) * 1e22
+            conductivity_per_mode[physical_mode] = conductivity_full.sum(axis=1)
+            # if beta==2:
+            #     print('beta=2')
+            #
+            #
+            #
+            #     gg = new_scattering.reshape(
+            #         (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
+            #
+            #     for ik in range(self.phonons.n_k_points):
+            #         for ik2 in range(self.phonons.n_k_points):
+            #
+            #             evect = self.phonons._eigensystem[ik][1:]
+            #             evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
+            #             gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
+            #                          gg[ik, :, ik2, :], evect_2)
+            #
+            #     n_atoms = self.phonons.n_atoms
+            #     gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
+            #
+            #     # at gamma
+            #     gg_red = gg[0, :, :, 0, :, :]
+            #     import matplotlib.pyplot as plt
+            #     plt.imshow(gg_red.real[:, 0, :, 2])
+            #     plt.show()
 
+                # average
+                # gg_reduced = gg.sum(axis=-2)
+                # gg_reduced = gg_reduced.sum(axis=1)
+                # import matplotlib.pyplot as plt
+                # plt.imshow(gg_reduced.real[:, 0, :, 2])
+                # plt.show()
 
-            # new_scattering = np.zeros((self.phonons.n_k_points * self.phonons.n_modes, self.phonons.n_k_points * self.phonons.n_modes))
-            # new_scattering[3:, 3:] = scattering_inverse
-            # gg = new_scattering.reshape(
-            #     (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
-            #
-            # for ik in range(self.phonons.n_k_points):
-            #     for ik2 in range(self.phonons.n_k_points):
-            #
-            #         evect = self.phonons._eigensystem[ik][1:]
-            #         evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
-            #         gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
-            #                      gg[ik, :, ik2, :], evect_2)
-            #
-            # n_atoms = self.phonons.n_atoms
-            # gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
-            #
-            # # at gamma
-            # gg_red = gg[0, :, :, 0, :, :]
-            # import matplotlib.pyplot as plt
-            # plt.imshow(gg_red.real[:, 0, :, 2])
-            # plt.show()
-            #
-            # # average
-            # gg_reduced = gg.sum(axis=-2)
-            # gg_reduced = gg_reduced.sum(axis=1)
-            # import matplotlib.pyplot as plt
-            # plt.imshow(gg_reduced.real[:, 0, :, 2])
-            # plt.show()
-            #
-        conductivity_per_mode = conductivity_per_mode / (volume * self.n_k_points) * 1e22
 
         return conductivity_per_mode
 
