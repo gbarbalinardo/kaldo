@@ -362,6 +362,33 @@ class Conductivity:
                                                        length[alpha])
 
             scattering_matrix += np.diag(gamma[physical_mode])
+            new_scattering = np.zeros((self.phonons.n_k_points * self.phonons.n_modes, self.phonons.n_k_points * self.phonons.n_modes))
+            new_scattering[3:, 3:] = scattering_matrix
+            gg = new_scattering.reshape(
+                (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points * self.phonons.n_modes)).astype(np.complex)
+
+            for ik in range(self.phonons.n_k_points):
+
+                evect = self.phonons._eigensystem[ik][1:]
+                gg[ik, :, :] = contract('im,mn->in', evect,
+                             gg[ik, :, :])
+
+            n_atoms = self.phonons.n_atoms
+            gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, self.n_modes))
+            gg_sum = gg.sum(axis=-1).sum(axis=1).real
+            import matplotlib.pyplot as plt
+            plt.imshow(gg_sum[:, 0, :])
+            plt.show()
+            # plt.plot(gg_sum[:,0], label='x')
+            # plt.plot(gg_sum[:,1], label='y')
+            # plt.plot(gg_sum[:,2], label='z')
+            # plt.legend()
+            # plt.show()
+
+
+
+
+
             scattering_inverse = np.linalg.inv(scattering_matrix)
             lambd[physical_mode, alpha] = scattering_inverse.dot(velocity[physical_mode, alpha])
             if finite_size_method == 'caltech':
