@@ -360,6 +360,10 @@ class Conductivity:
                                                              is_rescaling_omega=True,
                                                              is_rescaling_population=False)
 
+        evals_conv = np.linalg.eigvalsh(np.diag(1 / phonons.bandwidth.flatten()[physical_mode]).dot(scattering_matrix))
+        import matplotlib.pyplot as plt
+        plt.plot(evals_conv)
+        plt.show()
         for beta in range(3):
             gamma = phonons.bandwidth.reshape(phonons.n_phonons)
             if finite_size_method == 'ms':
