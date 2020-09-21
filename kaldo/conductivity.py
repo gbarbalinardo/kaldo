@@ -361,10 +361,10 @@ class Conductivity:
                                                              is_rescaling_population=False)
 
         # TODO: test with the symmetric gamma
-        evals_conv = np.linalg.eigvalsh(np.diag(1 / phonons.bandwidth.flatten()[physical_mode]).dot(scattering_matrix))
-        import matplotlib.pyplot as plt
-        plt.plot(evals_conv)
-        plt.show()
+        # evals_conv = np.linalg.eigvalsh(np.diag(1 / phonons.bandwidth.flatten()[physical_mode]).dot(scattering_matrix))
+        # import matplotlib.pyplot as plt
+        # plt.plot(evals_conv)
+        # plt.show()
         for beta in range(3):
             gamma = phonons.bandwidth.reshape(phonons.n_phonons)
             if finite_size_method == 'ms':
@@ -379,8 +379,17 @@ class Conductivity:
                                                                       velocity[physical_mode, beta]) / \
                                                              (volume * self.n_k_points) * 1e22
             conductivity_per_mode[physical_mode, :, beta] = conductivity_full.sum(axis=1)
-            # if beta==2:
-            #     print('beta=2')
+            if beta==2:
+                vel = velocity[physical_mode, 2]
+                vel[vel<0] = 0
+                print((contract('i,i,ij,j->ij',
+                          heat_capacity[physical_mode],
+                          vel,
+                          scattering_inverse,
+                          vel) / \
+                 (volume * self.n_k_points) * 1e22).sum(axis=1).sum(axis=0) * 29.92)
+
+                print('beta=2')
             #     new_cond = np.zeros((n_phonons, n_phonons))
             #     new_cond[4:, 4:] = conductivity_full[:, :, 2]
             #
