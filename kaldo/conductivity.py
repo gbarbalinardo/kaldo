@@ -360,6 +360,7 @@ class Conductivity:
                                                              is_rescaling_omega=True,
                                                              is_rescaling_population=False)
 
+        # TODO: test with the symmetric gamma
         evals_conv = np.linalg.eigvalsh(np.diag(1 / phonons.bandwidth.flatten()[physical_mode]).dot(scattering_matrix))
         import matplotlib.pyplot as plt
         plt.plot(evals_conv)
@@ -378,32 +379,43 @@ class Conductivity:
                                                                       velocity[physical_mode, beta]) / \
                                                              (volume * self.n_k_points) * 1e22
             conductivity_per_mode[physical_mode, :, beta] = conductivity_full.sum(axis=1)
-            if beta==2:
-                print('beta=2')
-                new_cond = np.zeros((n_phonons, n_phonons))
-                new_cond[4:, 4:] = conductivity_full[:, :, 2]
-
-
-
-                gg = new_cond.reshape(
-                    (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
-
-                for ik in range(self.phonons.n_k_points):
-                    for ik2 in range(self.phonons.n_k_points):
-
-                        evect = self.phonons._eigensystem[ik][1:]
-                        evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
-                        gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
-                                     gg[ik, :, ik2, :], evect_2)
-
-                n_atoms = self.phonons.n_atoms
-                gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
-                gg = gg.sum(axis=-2)
-                gg = gg.sum(axis=1)
-                # at gamma
-                import matplotlib.pyplot as plt
-                plt.imshow(gg[:, :, :, :].transpose(1, 0, 3, 2).reshape((self.n_k_points * 3, self.n_k_points * 3)).real)
-                plt.show()
+            # if beta==2:
+            #     print('beta=2')
+            #     new_cond = np.zeros((n_phonons, n_phonons))
+            #     new_cond[4:, 4:] = conductivity_full[:, :, 2]
+            #
+            #
+            #
+            #     gg = new_cond.reshape(
+            #         (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
+            #
+            #     for ik in range(self.phonons.n_k_points):
+            #         for ik2 in range(self.phonons.n_k_points):
+            #
+            #             evect = self.phonons._eigensystem[ik][1:]
+            #             evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
+            #             gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
+            #                          gg[ik, :, ik2, :], evect_2)
+            #
+            #     n_atoms = self.phonons.n_atoms
+            #     gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
+            #
+            #     g_reduced = gg.sum(axis=3).sum(axis=0)
+            #     new_shape = g_reduced.shape[0] * g_reduced.shape[1]
+            #
+            #     g_reduced = g_reduced.transpose(1, 0, 3, 2).reshape((new_shape, new_shape))
+            #
+            #     import matplotlib.pyplot as plt
+            #     plt.imshow(g_reduced.real)
+            #     plt.show()
+            #
+            #
+            #     gg = gg.sum(axis=-2)
+            #     gg = gg.sum(axis=1)
+            #     # at gamma
+            #     import matplotlib.pyplot as plt
+            #     plt.imshow(gg[:, :, :, :].transpose(1, 0, 3, 2).reshape((self.n_k_points * 3, self.n_k_points * 3)).real)
+            #     plt.show()
 
 
         return conductivity_per_mode
