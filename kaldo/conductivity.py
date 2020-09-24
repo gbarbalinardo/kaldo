@@ -360,11 +360,20 @@ class Conductivity:
                                                              is_rescaling_omega=True,
                                                              is_rescaling_population=False)
 
-        # TODO: test with the symmetric gamma
-        # evals_conv = np.linalg.eigvalsh(np.diag(1 / phonons.bandwidth.flatten()[physical_mode]).dot(scattering_matrix))
+
+        gamma_tensor = self.calculate_scattering_matrix(is_including_diagonal=False,
+                                                        is_rescaling_omega=False,
+                                                        is_rescaling_population=True)
+        # np.save('scatt_' + str(phonons.temperature), gamma_tensor)
+
+
+        evals_conv = np.linalg.eigvalsh(np.diag(1 / phonons.bandwidth.flatten()[physical_mode]).dot(gamma_tensor))
         # import matplotlib.pyplot as plt
         # plt.plot(evals_conv)
+        np.save('evals_' + str(phonons.temperature), evals_conv)
+
         # plt.show()
+
         for beta in range(3):
             gamma = phonons.bandwidth.reshape(phonons.n_phonons)
             if finite_size_method == 'ms':
@@ -379,17 +388,17 @@ class Conductivity:
                                                                       velocity[physical_mode, beta]) / \
                                                              (volume * self.n_k_points) * 1e22
             conductivity_per_mode[physical_mode, :, beta] = conductivity_full.sum(axis=1)
-            if beta==2:
-                vel = velocity[physical_mode, 2]
-                vel[vel<0] = 0
-                print((contract('i,i,ij,j->ij',
-                          heat_capacity[physical_mode],
-                          vel,
-                          scattering_inverse,
-                          vel) / \
-                 (volume * self.n_k_points) * 1e22).sum(axis=1).sum(axis=0) * 29.92)
-
-                print('beta=2')
+            # if beta==2:
+            #     vel = velocity[physical_mode, 2]
+            #     vel[vel<0] = 0
+            #     print((contract('i,i,ij,j->ij',
+            #               heat_capacity[physical_mode],
+            #               vel,
+            #               scattering_inverse,
+            #               vel) / \
+            #      (volume * self.n_k_points) * 1e22).sum(axis=1).sum(axis=0) * 29.92)
+            #
+            #     print('beta=2')
             #     new_cond = np.zeros((n_phonons, n_phonons))
             #     new_cond[4:, 4:] = conductivity_full[:, :, 2]
             #
@@ -415,15 +424,23 @@ class Conductivity:
             #     g_reduced = g_reduced.transpose(1, 0, 3, 2).reshape((new_shape, new_shape))
             #
             #     import matplotlib.pyplot as plt
-            #     plt.imshow(g_reduced.real)
-            #     plt.show()
+            #     # plt.imshow(np.abs(g_reduced.real))
+            #     # plt.show()
+            #     print(n_atoms)
+            #
+            #     plt.subplot(111)
+            #     plt.xticks([0, 40, 80], ['x', 'y', 'z'])
+            #     plt.yticks([0, 40, 80], ['x', 'y', 'z'])
+            #
+            #     plt.imshow(g_reduced.real, cmap=plt.cm.viridis)
             #
             #
-            #     gg = gg.sum(axis=-2)
-            #     gg = gg.sum(axis=1)
-            #     # at gamma
-            #     import matplotlib.pyplot as plt
-            #     plt.imshow(gg[:, :, :, :].transpose(1, 0, 3, 2).reshape((self.n_k_points * 3, self.n_k_points * 3)).real)
+            #     plt.subplots_adjust(bottom=0.1, left=0.0, right=0.9, top=0.9)
+            #     cax = plt.axes([0.85, 0.1, 0.06, 0.8])
+            #     clb = plt.colorbar(cax=cax)
+            #     clb.ax.set_title('W/m/K')
+            #     # cax.set_label('W/m/K', size=18)
+            #     # cbar = fig.colorbar(heatmap)
             #     plt.show()
 
 
