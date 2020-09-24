@@ -380,6 +380,12 @@ class Conductivity:
                 if length is not None:
                     if length[beta]:
                         gamma = gamma + 2 * np.abs(velocity[:, beta]) / length[beta]
+                        evals_conv = np.linalg.eigvalsh(
+                            np.diag(1 / gamma[physical_mode]).dot(gamma_tensor))
+
+                        np.save('evals_' + str(phonons.temperature) + '_' +  str(length[beta]), evals_conv)
+
+
             scattering_inverse = np.linalg.inv(scattering_matrix + np.diag(gamma[physical_mode]))
             conductivity_full[:, :, :] = contract('i,ia,ij,j->ija',
                                                                       heat_capacity[physical_mode],
