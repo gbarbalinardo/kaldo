@@ -14,6 +14,8 @@ def calculate_conductivity_per_mode(heat_capacity, velocity, mfp, physical_mode,
     conductivity_per_mode = np.zeros((n_phonons, 3, 3))
     physical_mode = physical_mode.reshape(n_phonons)
     velocity = velocity.reshape((n_phonons, 3))
+    velocity =  1 / (heat_capacity[:, np.newaxis] ** 0.5) * velocity
+
     conductivity_per_mode[physical_mode, :, :] = \
         heat_capacity[physical_mode, np.newaxis, np.newaxis] * velocity[physical_mode, :, np.newaxis] * \
         mfp[physical_mode, np.newaxis, :]
@@ -350,11 +352,20 @@ class Conductivity:
         finite_length_method = self.finite_length_method
         physical_mode = phonons.physical_mode.reshape(phonons.n_phonons)
         velocity = phonons.velocity.real.reshape((phonons.n_phonons, 3))
+        frequency = phonons.frequency.reshape((phonons.n_phonons))
+        n = phonons.population.reshape((phonons.n_phonons))
+        c = phonons.heat_capacity.reshape((phonons.n_phonons))
         lambd = np.zeros_like(velocity)
         for alpha in range (3):
+
             scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
-                                                                 is_rescaling_omega=True,
-                                                                 is_rescaling_population=False)
+                                                            is_rescaling_omega=False,
+                                                            is_rescaling_population=True)
+
+
+            # scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
+            #                                                      is_rescaling_omega=True,
+            #                                                      is_rescaling_population=False)
             gamma = phonons.bandwidth.reshape(phonons.n_phonons)
             if finite_length_method == 'ms':
                 if length is not None:
@@ -373,10 +384,10 @@ class Conductivity:
                 if (self.length[alpha] is not None) and (self.length[alpha] != 0):
                     for alpha in range(3):
                         if (self.length[alpha] is not None) and (self.length[alpha] != 0):
-                            velocity = velocity[physical_mode, alpha]
-                            gamma_inv = np.zeros_like(velocity)
-                            gamma_inv[velocity != 0] = length[alpha] / (2 * np.abs(velocity[velocity != 0]))
-                            lambd_ballistic = np.diag(gamma_inv).dot(velocity)
+                            new_velocity = velocity[physical_mode, alpha]
+                            gamma_inv = np.zeros_like(new_velocity)
+                            gamma_inv[new_velocity != 0] = length[alpha] / (2 * np.abs(new_velocity[new_velocity != 0]))
+                            lambd_ballistic = np.diag(gamma_inv).dot(new_velocity)
                             lambd_diffusive = lambd[physical_mode, alpha]
                             new_physical_modes = (lambd_diffusive >= 0)
                             new_lambda = np.zeros_like(lambd_diffusive)
@@ -391,7 +402,8 @@ class Conductivity:
                     gamma_inv[velocity != 0] = length[alpha] / (2 * np.abs(velocity[velocity != 0]))
                     lambd[physical_mode, alpha] = np.diag(gamma_inv).dot(velocity)
 
-        return lambd
+        return lambd * c[:, np.newaxis] ** 0.5
+
 
 
     def calculate_lambda_tensor(self, alpha, scattering_inverse):
