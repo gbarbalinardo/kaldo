@@ -252,7 +252,8 @@ class Conductivity:
             gamma = self.phonons.bandwidth.reshape((self.n_phonons))[physical_mode]
             gamma_tensor = gamma_tensor + np.diag(gamma)
         if is_rescaling_omega:
-            gamma_tensor = 1 / (frequency.reshape(-1, 1)) * gamma_tensor * (frequency.reshape(1, -1))
+            gamma_tensor = contract('a,ab,b->ab', 1 / frequency, gamma_tensor, frequency)
+            logging.info('Asymmetry of gamma_tensor: ' + str(np.abs(gamma_tensor - gamma_tensor.T).sum()))
         return gamma_tensor
 
 
