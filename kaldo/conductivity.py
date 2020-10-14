@@ -394,60 +394,51 @@ class Conductivity:
                                                                       velocity[physical_mode, beta]) / \
                                                              (volume * self.n_k_points) * 1e22
             conductivity_per_mode[physical_mode, :, beta] = conductivity_full.sum(axis=1)
-            # if beta==2:
-            #     vel = velocity[physical_mode, 2]
-            #     vel[vel<0] = 0
-            #     print((contract('i,i,ij,j->ij',
-            #               heat_capacity[physical_mode],
-            #               vel,
-            #               scattering_inverse,
-            #               vel) / \
-            #      (volume * self.n_k_points) * 1e22).sum(axis=1).sum(axis=0) * 29.92)
-            #
-            #     print('beta=2')
-            #     new_cond = np.zeros((n_phonons, n_phonons))
-            #     new_cond[4:, 4:] = conductivity_full[:, :, 2]
-            #
-            #
-            #
-            #     gg = new_cond.reshape(
-            #         (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
-            #
-            #     for ik in range(self.phonons.n_k_points):
-            #         for ik2 in range(self.phonons.n_k_points):
-            #
-            #             evect = self.phonons._eigensystem[ik][1:]
-            #             evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
-            #             gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
-            #                          gg[ik, :, ik2, :], evect_2)
-            #
-            #     n_atoms = self.phonons.n_atoms
-            #     gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
-            #
-            #     g_reduced = gg.sum(axis=3).sum(axis=0)
-            #     new_shape = g_reduced.shape[0] * g_reduced.shape[1]
-            #
-            #     g_reduced = g_reduced.transpose(1, 0, 3, 2).reshape((new_shape, new_shape))
-            #
-            #     import matplotlib.pyplot as plt
-            #     # plt.imshow(np.abs(g_reduced.real))
-            #     # plt.show()
-            #     print(n_atoms)
-            #
-            #     plt.subplot(111)
-            #     plt.xticks([0, 40, 80], ['x', 'y', 'z'])
-            #     plt.yticks([0, 40, 80], ['x', 'y', 'z'])
-            #
-            #     plt.imshow(g_reduced.real, cmap=plt.cm.viridis)
-            #
-            #
-            #     plt.subplots_adjust(bottom=0.1, left=0.0, right=0.9, top=0.9)
-            #     cax = plt.axes([0.85, 0.1, 0.06, 0.8])
-            #     clb = plt.colorbar(cax=cax)
-            #     clb.ax.set_title('W/m/K')
-            #     # cax.set_label('W/m/K', size=18)
-            #     # cbar = fig.colorbar(heatmap)
-            #     plt.show()
+            if beta==2:
+                vel = velocity[physical_mode, 2]
+                vel[vel<0] = 0
+                print((contract('i,i,ij,j->ij',
+                          heat_capacity[physical_mode],
+                          vel,
+                          scattering_inverse,
+                          vel) / \
+                 (volume * self.n_k_points) * 1e22).sum(axis=1).sum(axis=0) * 29.92)
+
+                print('beta=2')
+                new_cond = np.zeros((n_phonons, n_phonons))
+                new_cond[4:, 4:] = conductivity_full[:, :, 2]
+
+
+
+                gg = new_cond.reshape(
+                    (self.phonons.n_k_points, self.phonons.n_modes, self.phonons.n_k_points, self.phonons.n_modes)).astype(np.complex)
+
+                for ik in range(self.phonons.n_k_points):
+                    for ik2 in range(self.phonons.n_k_points):
+
+                        evect = self.phonons._eigensystem[ik][1:]
+                        evect_2 = np.conjugate(self.phonons._eigensystem[ik2][1:].T)
+                        gg[ik, :, ik2, :] = contract('im,mn,nj->ij', evect,
+                                     gg[ik, :, ik2, :], evect_2)
+
+                n_atoms = self.phonons.n_atoms
+                gg = gg.reshape((self.phonons.n_k_points, n_atoms, 3, self.phonons.n_k_points, n_atoms, 3))
+
+                g_reduced = gg.sum(axis=3).sum(axis=0)
+                np.save('g_reduced', g_reduced)
+
+                # new_shape = g_reduced.shape[0] * g_reduced.shape[1]
+                # g_reduced = g_reduced.transpose(1, 0, 3, 2).reshape((new_shape, new_shape))
+                # import matplotlib.pyplot as plt
+                # plt.subplot(111)
+                # plt.xticks([0, 40, 80], ['x', 'y', 'z'])
+                # plt.yticks([0, 40, 80], ['x', 'y', 'z'])
+                # plt.imshow(g_reduced.real, cmap=plt.cm.viridis)
+                # plt.subplots_adjust(bottom=0.1, left=0.0, right=0.9, top=0.9)
+                # cax = plt.axes([0.85, 0.1, 0.06, 0.8])
+                # clb = plt.colorbar(cax=cax)
+                # clb.ax.set_title('$\kappa$ ($\mathrm{Wm}^{-1}\mathrm{K}^{-1}$)')
+                # plt.show()
 
 
         return conductivity_per_mode
