@@ -495,7 +495,7 @@ class Conductivity:
 
 
 
-    def calculate_conductivity_full(self, is_using_gamma_tensor_evects=False):
+    def calculate_conductivity_full(self):
         """This calculates the conductivity using the full solution of the space-dependent Boltzmann Transport Equation.
 
         Returns
@@ -503,13 +503,13 @@ class Conductivity:
         conductivity_per_mode : np array
             (n_k_points, n_modes, 3)
         """
-        length = self.length
         n_phonons = self.n_phonons
         n_k_points = self.n_k_points
         volume = np.linalg.det(self.phonons.atoms.cell)
         physical_mode = self.phonons.physical_mode.reshape(n_phonons)
         velocity = self.phonons.velocity.real.reshape((n_phonons, 3))[physical_mode, :]
         heat_capacity = self.phonons.heat_capacity.flatten()[physical_mode]
+        sqr_heat_capacity = heat_capacity ** 0.5
         gamma_tensor = self.calculate_scattering_matrix(is_including_diagonal=True,
                                                         is_rescaling_omega=False,
                                                         is_rescaling_population=True)
@@ -517,46 +517,24 @@ class Conductivity:
         neg_diag = (gamma_tensor.diagonal() < 0).sum()
         logging.info('negative on diagonal : ' + str(neg_diag))
         log_size(gamma_tensor.shape, name='scattering_inverse')
-        if is_using_gamma_tensor_evects:
-            evals, evects = np.linalg.eigh(gamma_tensor)
-            logging.info('negative eigenvals : ' + str((evals < 0).sum()))
-            new_physical_states = np.argwhere(evals >= 0)[0, 0]
-            reduced_evects = evects[new_physical_states:, new_physical_states:]
-            reduced_evals = evals[new_physical_states:]
-            scattering_inverse = np.zeros_like(gamma_tensor)
-            scattering_inverse[new_physical_states:, new_physical_states:] = reduced_evects.dot(
-                np.diag(1 / reduced_evals)).dot((reduced_evects.T))
-        else:
-            scattering_inverse = np.linalg.inv(gamma_tensor)
+        evals, evects = np.linalg.eigh(gamma_tensor)
+        logging.info('negative eigenvals : ' + str((evals < 0).sum()))
+        new_physical_states = np.argwhere(evals >= 0)[0, 0]
+        reduced_evects = evects[new_physical_states:, new_physical_states:]
+        reduced_evals = evals[new_physical_states:]
+        scattering_inverse = np.zeros_like(gamma_tensor)
+        scattering_inverse[new_physical_states:, new_physical_states:] = contract('ij,j,jk->ik',
+                                                                                  reduced_evects,
+                                                                                  1 / reduced_evals,
+                                                                                  reduced_evects.T)
         full_cond = np.zeros((n_phonons, 3, 3))
         for alpha in range(3):
-            self.calculate_lambda_tensor(alpha, scattering_inverse)
-            forward_states = self._lambd > 0
-            lambd_p = self._lambd[forward_states]
-            only_lambd_plus = self._lambd.copy()
-            only_lambd_plus[self._lambd < 0] = 0
-            lambd_tilde = only_lambd_plus
-            new_lambd = np.zeros_like(lambd_tilde)
-            # using average
-            # exp_tilde[self._lambd>0] = (length[alpha] + lambd_p * (-1 + np.exp(-length[alpha] / (lambd_p)))) * lambd_p/length[alpha]
-            if length is not None:
-                if length[alpha]:
-                    leng = np.zeros_like(self._lambd)
-                    leng[:] = length[alpha]
-                    leng[self._lambd < 0] = 0
-                    new_lambd[self._lambd > 0] = (1 - np.exp(-length[alpha] / (lambd_p))) * lambd_p
-                    # exp_tilde[lambd<0] = (1 - np.exp(-length[0] / (-lambd_m))) * lambd_m
-                else:
-                    new_lambd[self._lambd > 0] = lambd_p
-            else:
-                new_lambd[self._lambd > 0] = lambd_p
-            lambd_tilde = new_lambd
             for beta in range(3):
-                cond = 2 * contract('nl,l,lk,k,k->n',
-                                self._psi,
-                                lambd_tilde,
-                                self._psi_inv,
-                                heat_capacity,
+                cond = contract('l,l,lk,k,k->l',
+                                sqr_heat_capacity,
+                                velocity[:, alpha],
+                                scattering_inverse,
+                                sqr_heat_capacity,
                                 velocity[:, beta],
                                 )
                 full_cond[physical_mode, alpha, beta] = cond
