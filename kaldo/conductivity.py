@@ -509,7 +509,6 @@ class Conductivity:
         physical_mode = self.phonons.physical_mode.reshape(n_phonons)
         velocity = self.phonons.velocity.real.reshape((n_phonons, 3))[physical_mode, :]
         heat_capacity = self.phonons.heat_capacity.flatten()[physical_mode]
-        sqr_heat_capacity = heat_capacity ** 0.5
         gamma_tensor = self.calculate_scattering_matrix(is_including_diagonal=True,
                                                         is_rescaling_omega=False,
                                                         is_rescaling_population=True)
@@ -521,22 +520,27 @@ class Conductivity:
         logging.info('negative eigenvals : ' + str((evals < 0).sum()))
         new_physical_states = np.argwhere(evals >= 0)[0, 0]
         reduced_evects = evects[new_physical_states:, new_physical_states:]
-        reduced_evals = evals[new_physical_states:]
-
+        tau = 1 / evals[new_physical_states:]
         full_cond = np.zeros((n_phonons, 3, 3))
+
+        sqr_heat_capacity = (heat_capacity ** 0.5)[new_physical_states:]
         for alpha in range(3):
+            vel_alpha = velocity[new_physical_states:, alpha]
+
             for beta in range(3):
+                vel_beta = velocity[new_physical_states:, beta]
                 cond = contract('l,l,lj,j,jk,k,k->l',
-                                sqr_heat_capacity[new_physical_states:],
-                                velocity[new_physical_states:, alpha],
+                                sqr_heat_capacity,
+                                vel_alpha,
                                 reduced_evects,
-                                1 / reduced_evals,
+                                tau,
                                 reduced_evects.T,
-                                velocity[new_physical_states:, beta],
-                                sqr_heat_capacity[new_physical_states:]
+                                vel_beta,
+                                sqr_heat_capacity
                                 )
-                full_cond[physical_mode, alpha, beta] = cond
-        return full_cond / (volume * n_k_points) * 1e22
+
+                full_cond[physical_mode, alpha, beta] = cond * 1e22
+        return full_cond / (volume * n_k_points)
 
 
     def _calculate_mfp_sc(self):
