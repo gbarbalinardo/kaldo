@@ -522,20 +522,18 @@ class Conductivity:
         new_physical_states = np.argwhere(evals >= 0)[0, 0]
         reduced_evects = evects[new_physical_states:, new_physical_states:]
         reduced_evals = evals[new_physical_states:]
-        scattering_inverse = np.zeros_like(gamma_tensor)
-        scattering_inverse[new_physical_states:, new_physical_states:] = contract('ij,j,jk->ik',
-                                                                                  reduced_evects,
-                                                                                  1 / reduced_evals,
-                                                                                  reduced_evects.T)
+
         full_cond = np.zeros((n_phonons, 3, 3))
         for alpha in range(3):
             for beta in range(3):
-                cond = contract('l,l,lk,k,k->l',
-                                sqr_heat_capacity,
-                                velocity[:, alpha],
-                                scattering_inverse,
-                                sqr_heat_capacity,
-                                velocity[:, beta],
+                cond = contract('l,l,lj,j,jk,k,k->l',
+                                sqr_heat_capacity[new_physical_states:],
+                                velocity[new_physical_states:, alpha],
+                                reduced_evects,
+                                1 / reduced_evals,
+                                reduced_evects.T,
+                                velocity[new_physical_states:, beta],
+                                sqr_heat_capacity[new_physical_states:]
                                 )
                 full_cond[physical_mode, alpha, beta] = cond
         return full_cond / (volume * n_k_points) * 1e22
