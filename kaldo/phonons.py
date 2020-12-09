@@ -394,8 +394,8 @@ class Phonons:
         n_modes = self.n_modes
         masses = self.atoms.get_masses()
         rescaled_eigenvectors = self.eigenvectors[:, :, :].reshape(
-            (self.n_k_points, n_atoms, 3, n_modes)) / np.sqrt(
-            masses[np.newaxis, :, np.newaxis, np.newaxis])
+            (self.n_k_points, n_atoms, n_modes)) / np.sqrt(
+            masses[np.newaxis, :, np.newaxis])
         rescaled_eigenvectors = rescaled_eigenvectors.reshape((self.n_k_points, n_modes, n_modes))
         return rescaled_eigenvectors
 

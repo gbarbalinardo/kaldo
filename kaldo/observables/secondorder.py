@@ -36,7 +36,7 @@ class SecondOrder(ForceConstant):
         self.value = kwargs['value']
         if self.is_acoustic_sum:
             self.value = acoustic_sum_rule(self.value)
-        self.n_modes = self.atoms.positions.shape[0] * 3
+        self.n_modes = self.atoms.positions.shape[0]
         self._list_of_replicas = None
         self.storage = 'numpy'
 
