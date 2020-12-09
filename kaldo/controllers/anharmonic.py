@@ -83,17 +83,9 @@ def project_crystal(phonons):
     is_gamma_tensor_enabled = phonons.is_gamma_tensor_enabled
     n_replicas = phonons.forceconstants.third.n_replicas
 
-    try:
-        sparse_third = phonons.forceconstants.third.value.reshape((phonons.n_modes, -1))
-        # transpose
-        sparse_coords = tf.stack([sparse_third.coords[1], sparse_third.coords[0]], -1)
-        third_tf = tf.SparseTensor(sparse_coords,
-                                   sparse_third.data,
-                                   ((phonons.n_modes * n_replicas) ** 2, phonons.n_modes))
-        is_sparse = True
-    except AttributeError:
-        third_tf = tf.convert_to_tensor(phonons.forceconstants.third.value)
-        is_sparse = False
+    third_tf = tf.convert_to_tensor(phonons.forceconstants.third.value.todense())
+    is_sparse = False
+
     third_tf = tf.cast(third_tf, dtype=tf.complex64)
     k_mesh = phonons._reciprocal_grid.unitary_grid(is_wrapping=False)
     n_k_points = k_mesh.shape[0]
@@ -101,6 +93,10 @@ def project_crystal(phonons):
     _chi_k = tf.cast(_chi_k, dtype=tf.complex64)
     evect_tf = tf.convert_to_tensor(phonons._rescaled_eigenvectors)
     evect_tf = tf.cast(evect_tf, dtype=tf.complex64)
+    third_tf = tf.reshape(third_tf,
+                          (phonons.n_modes, 3, n_replicas, phonons.n_modes, 3, n_replicas, phonons.n_modes, 3))
+    third_tf = third_tf[:, 2, :, :, 2, :, :, 2]
+    third_tf = tf.reshape(third_tf, (phonons.n_modes, n_replicas * phonons.n_modes, n_replicas * phonons.n_modes))
     # The ps and gamma matrix stores ps, gamma and then the scattering matrix
     if is_gamma_tensor_enabled:
         shape = (phonons.n_phonons, 2 + phonons.n_phonons)
