@@ -328,9 +328,9 @@ def calculate_dirac_delta_amorphous(omega, population, physical_mode, sigma_tf, 
 
 
 def calculate_broadening(velocity_tf, cellinv, k_size, index_kpp_vec):
-    velocity_difference = velocity_tf[:, :, tf.newaxis, :] - tf.gather(velocity_tf, index_kpp_vec)[:,tf.newaxis, :, :]
+    velocity_difference = velocity_tf[:, :, tf.newaxis] - tf.gather(velocity_tf, index_kpp_vec)[:,tf.newaxis, :]
     # we want the last index of velocity (the coordinate index to dot from the right to rlattice vec
-    delta_k = cellinv / k_size
-    base_sigma = tf.reduce_sum((tf.tensordot(velocity_difference, delta_k, [-1, 1])) ** 2, axis=-1)
-    base_sigma = tf.sqrt(base_sigma / 6.)
+    delta_k = cellinv[2, 2] / k_size[2]
+    base_sigma = (velocity_difference * delta_k) ** 2
+    base_sigma = tf.sqrt(base_sigma / 2.)
     return base_sigma
