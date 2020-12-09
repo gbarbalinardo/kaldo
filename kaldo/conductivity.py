@@ -52,11 +52,10 @@ def gamma_with_matthiessen(gamma, velocity, length):
 
 def mfp_matthiessen(gamma, velocity, length, physical_mode):
     lambd_0 = np.zeros_like(velocity)
-    for alpha in range(3):
-        if length is not None:
-            if length[alpha] and length[alpha] != 0:
-                gamma = gamma + 2 * abs(velocity[:, alpha]) / length[alpha]
-        lambd_0[physical_mode, alpha] = 1 / gamma[physical_mode] * velocity[physical_mode, alpha]
+    if length is not None:
+        if length[2] and length[2] != 0:
+            gamma = gamma + 2 * abs(velocity[:]) / length[2]
+    lambd_0[physical_mode] = 1 / gamma[physical_mode] * velocity[physical_mode]
     return lambd_0
 
 
@@ -516,25 +515,23 @@ class Conductivity:
         phonons = self.phonons
         finite_length_method = self.finite_length_method
         physical_mode = phonons.physical_mode.reshape(phonons.n_phonons)
-        velocity = phonons.velocity.real.reshape ((phonons.n_k_points, phonons.n_modes, 3))
-        velocity = velocity.reshape((phonons.n_phonons, 3))
+        velocity = phonons.velocity.real
+        velocity = velocity.reshape((phonons.n_phonons))
 
         if finite_length_method == 'ms':
             lambd_n = self._calculate_sc_mfp(matthiessen_length=self.length)
         else:
             lambd_n = self._calculate_sc_mfp()
         if finite_length_method == 'caltech':
-            for alpha in range(3):
-                lambd_n[:, alpha] = mfp_caltech(lambd_n[:, alpha], velocity[:, alpha], self.length[alpha], physical_mode)
+            lambd_n[:] = mfp_caltech(lambd_n[:], velocity[:], self.length[2], physical_mode)
         if finite_length_method == 'matthiessen':
             mfp = lambd_n.copy()
-            for alpha in range(3):
-                if (self.length[alpha] is not None) and (self.length[alpha] != 0):
-                    lambd_n[physical_mode, alpha] = 1 / (np.sign(velocity[physical_mode, alpha]) / mfp[physical_mode, alpha] + 1 / np.array(self.length)[np.newaxis, alpha]) * np.sign(velocity[physical_mode, alpha])
-                else:
-                    lambd_n[physical_mode, alpha] = 1 / (np.sign(velocity[physical_mode, alpha]) / mfp[physical_mode, alpha]) * np.sign(velocity[physical_mode, alpha])
+            if (self.length[2] is not None) and (self.length[2] != 0):
+                lambd_n[physical_mode] = 1 / (np.sign(velocity[physical_mode]) / mfp[physical_mode] + 1 / np.array(self.length)[np.newaxis, 2]) * np.sign(velocity[physical_mode])
+            else:
+                lambd_n[physical_mode] = 1 / (np.sign(velocity[physical_mode]) / mfp[physical_mode]) * np.sign(velocity[physical_mode])
 
-                lambd_n[velocity[:, alpha]==0, alpha] = 0
+            lambd_n[velocity[:]==0] = 0
         return lambd_n
 
 
@@ -544,8 +541,8 @@ class Conductivity:
         phonons = self.phonons
         if n_iterations is None:
             n_iterations = max_iterations_sc
-        velocity = phonons.velocity.real.reshape ((phonons.n_k_points, phonons.n_modes, 3))
-        velocity = velocity.reshape((phonons.n_phonons, 3))
+        velocity = phonons.velocity.real.reshape ((phonons.n_k_points, phonons.n_modes))
+        velocity = velocity.reshape((phonons.n_phonons))
         physical_mode = phonons.physical_mode.reshape(phonons.n_phonons)
         if n_iterations == 0:
             gamma = phonons.bandwidth.reshape(phonons.n_phonons)
