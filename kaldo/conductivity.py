@@ -11,12 +11,12 @@ from kaldo.helpers.logger import get_logger, log_size
 logging = get_logger()
 
 def calculate_conductivity_per_mode(heat_capacity, velocity, mfp, physical_mode, n_phonons):
-    conductivity_per_mode = np.zeros((n_phonons, 3, 3))
+    conductivity_per_mode = np.zeros((n_phonons))
     physical_mode = physical_mode.reshape(n_phonons)
-    velocity = velocity.reshape((n_phonons, 3))
-    conductivity_per_mode[physical_mode, :, :] = \
-        heat_capacity[physical_mode, np.newaxis, np.newaxis] * velocity[physical_mode, :, np.newaxis] * \
-        mfp[physical_mode, np.newaxis, :]
+    velocity = velocity.reshape((n_phonons))
+    conductivity_per_mode[physical_mode] = \
+        heat_capacity[physical_mode] * velocity[physical_mode] * \
+        mfp[physical_mode]
     return conductivity_per_mode * 1e22
 
 
@@ -349,46 +349,44 @@ class Conductivity:
         phonons = self.phonons
         finite_length_method = self.finite_length_method
         physical_mode = phonons.physical_mode.reshape(phonons.n_phonons)
-        velocity = phonons.velocity.real.reshape((phonons.n_phonons, 3))
+        velocity = phonons.velocity.real.reshape((phonons.n_phonons))
         lambd = np.zeros_like(velocity)
-        for alpha in range (3):
-            scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
-                                                                 is_rescaling_omega=True,
-                                                                 is_rescaling_population=False)
-            gamma = phonons.bandwidth.reshape(phonons.n_phonons)
-            if finite_length_method == 'ms':
-                if length is not None:
-                    if length[alpha]:
-                        gamma = gamma + 2 * np.abs(velocity[:, alpha]) / length[alpha]
+        scattering_matrix = self.calculate_scattering_matrix(is_including_diagonal=False,
+                                                             is_rescaling_omega=True,
+                                                             is_rescaling_population=False)
+        gamma = phonons.bandwidth.reshape(phonons.n_phonons)
+        if finite_length_method == 'ms':
+            if length is not None:
+                if length[2]:
+                    gamma = gamma + 2 * np.abs(velocity[:]) / length[2]
 
 
-            scattering_matrix += np.diag(gamma[physical_mode])
-            scattering_inverse = np.linalg.inv(scattering_matrix)
-            lambd[physical_mode, alpha] = scattering_inverse.dot(velocity[physical_mode, alpha])
-            if finite_length_method == 'caltech':
-                if length is not None:
-                    if length[alpha]:
-                        lambd[:, alpha] = mfp_caltech(lambd[:, alpha], velocity[:, alpha], length[alpha], physical_mode)
-            if finite_length_method == 'matthiessen':
-                if (self.length[alpha] is not None) and (self.length[alpha] != 0):
+        scattering_matrix += np.diag(gamma[physical_mode])
+        scattering_inverse = np.linalg.inv(scattering_matrix)
+        lambd[physical_mode] = scattering_inverse.dot(velocity[physical_mode])
+        if finite_length_method == 'caltech':
+            if length is not None:
+                if length[2]:
+                    lambd[:] = mfp_caltech(lambd[:], velocity[:], length[2], physical_mode)
+        if finite_length_method == 'matthiessen':
+            if (self.length[2] is not None) and (self.length[2] != 0):
 
-                    for alpha in range(3):
-                        if (self.length[alpha] is not None) and (self.length[alpha] != 0):
-                            new_physical_modes = (lambd[physical_mode, alpha] != 0) & \
-                                                 (velocity[physical_mode, alpha]!=0)
-                            new_lambd = np.zeros(physical_mode.sum())
-                            new_lambd[new_physical_modes] = 1 / (
-                                        1 / lambd[physical_mode, alpha][new_physical_modes] +
-                                        np.sign(velocity[physical_mode, alpha][new_physical_modes]) /
-                                        np.array(self.length)[np.newaxis, alpha])
-                            lambd[physical_mode, alpha] = new_lambd
+                if (self.length[2] is not None) and (self.length[2] != 0):
+                    new_physical_modes = (lambd[physical_mode] != 0) & \
+                                         (velocity[physical_mode]!=0)
+                    new_lambd = np.zeros(physical_mode.sum())
+                    new_lambd[new_physical_modes] = 1 / (
+                                1 / lambd[physical_mode][new_physical_modes] +
+                                np.sign(velocity[physical_mode][new_physical_modes]) /
+                                np.array(self.length)[np.newaxis])
+                    lambd[physical_mode] = new_lambd
 
-            if finite_length_method == 'ballistic':
-                if (self.length[alpha] is not None) and (self.length[alpha] != 0):
-                    velocity = velocity[physical_mode, alpha]
-                    gamma_inv = np.zeros_like(velocity)
-                    gamma_inv[velocity != 0] = length[alpha] / (2 * np.abs(velocity[velocity != 0]))
-                    lambd[physical_mode, alpha] = np.diag(gamma_inv).dot(velocity)
+        if finite_length_method == 'ballistic':
+            if (self.length[2] is not None) and (self.length[2] != 0):
+                velocity = velocity[physical_mode]
+                gamma_inv = np.zeros_like(velocity)
+                gamma_inv[velocity != 0] = length[2] / (2 * np.abs(velocity[velocity != 0]))
+                lambd[physical_mode] = np.diag(gamma_inv).dot(velocity)
 
         return lambd
 

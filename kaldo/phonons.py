@@ -170,7 +170,7 @@ class Phonons:
         """
 
         q_points = self._reciprocal_grid.unitary_grid(is_wrapping=False)
-        velocity = np.zeros((self.n_k_points, self.n_modes, 3))
+        velocity = np.zeros((self.n_k_points, self.n_modes))
         for ik in range(len(q_points)):
             q_point = q_points[ik]
             phonon = HarmonicWithQ(q_point=q_point,

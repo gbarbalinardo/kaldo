@@ -34,9 +34,9 @@ class HarmonicWithQ(Observable):
         self.is_unfolding = is_unfolding
         if (q_point == [0, 0, 0]).all():
             if self.is_nw:
-                self.physical_mode[0, :4] = False
+                self.physical_mode[0, :1] = False
             else:
-                self.physical_mode[0, :3] = False
+                self.physical_mode[0, :1] = False
         if self.n_modes > MIN_N_MODES_TO_STORE:
             self.storage = storage
         else:
