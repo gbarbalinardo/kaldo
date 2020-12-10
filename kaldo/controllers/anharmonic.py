@@ -111,7 +111,7 @@ def project_crystal(phonons):
     broadening_shape = phonons.broadening_shape
     physical_mode = phonons.physical_mode.reshape((phonons.n_k_points, phonons.n_modes))
     omega = phonons.omega
-    if not phonons.third_bandwidth:
+    if phonons.third_bandwidth is None:
         velocity_tf = tf.convert_to_tensor(phonons.velocity)
     gamma_to_thz = 1e11 * units.mol * (units.mol / (10 * units.J)) ** 2
     for nu_single in range(phonons.n_phonons):
@@ -134,7 +134,7 @@ def project_crystal(phonons):
             index_kpp_full = phonons._allowed_third_phonons_index(index_k, is_plus)
             index_kpp_full = tf.cast(index_kpp_full, dtype=tf.int32)
 
-            if phonons.third_bandwidth:
+            if phonons.third_bandwidth is not None:
                 sigma_tf = tf.constant(phonons.third_bandwidth, dtype=tf.float64)
             else:
                 cellinv = phonons.forceconstants.cell_inv
@@ -222,7 +222,7 @@ def calculate_dirac_delta_crystal(omega, population, physical_mode, sigma_tf, br
                                tf.gather(omega, index_kpp_full)[:, tf.newaxis, :])
 
 
-    condition = (omegas_difference < default_delta_threshold * 2 * np.pi * sigma_tf) & \
+    condition = (omegas_difference < default_delta_threshold * 2 * np.pi * np.max(sigma_tf)) & \
                 (physical_mode[:, :, np.newaxis]) & \
                 (physical_mode[index_kpp_full, np.newaxis, :])
     interactions = tf.where(condition)
@@ -233,9 +233,9 @@ def calculate_dirac_delta_crystal(omega, population, physical_mode, sigma_tf, br
         mupp_vec = tf.cast(interactions[:, 2], dtype=tf.int32)
         coords_1 = tf.stack((index_kp_vec, mup_vec), axis=-1)
         coords_2 = tf.stack((index_kpp_vec, mupp_vec), axis=-1)
-        if sigma_tf.shape != []:
-            coords_3 = tf.stack((index_kp_vec, mup_vec, mupp_vec), axis=-1)
-            sigma_tf = tf.gather_nd(sigma_tf, coords_3)
+        # if sigma_tf.shape != []:
+        #     coords_3 = tf.stack((index_kp_vec, mup_vec, mupp_vec), axis=-1)
+        #     sigma_tf = tf.gather_nd(sigma_tf, coords_3)
         if is_plus:
             dirac_delta_tf = tf.gather_nd(population, coords_1) - tf.gather_nd(population, coords_2)
             if is_balanced:
@@ -252,8 +252,9 @@ def calculate_dirac_delta_crystal(omega, population, physical_mode, sigma_tf, br
                 dirac_delta_tf += 0.25 * (tf.gather_nd(population, coords_1) + 1) * (tf.gather_nd(population, coords_2) + 1) / (1 + population[index_k, mu])
         omegas_difference_tf = (omega[index_k, mu] + second_sign * tf.gather_nd(omega, coords_1) - tf.gather_nd(
                 omega, coords_2))
-
-        dirac_delta_tf = dirac_delta_tf * broadening_function(omegas_difference_tf, 2 * np.pi * sigma_tf)
+        sigma = (sigma_tf[index_k, mu] + tf.gather_nd(sigma_tf, coords_1) - tf.gather_nd(
+                sigma_tf, coords_2))
+        dirac_delta_tf = dirac_delta_tf * broadening_function(omegas_difference_tf, 2 * np.pi * sigma)
 
         index_kp = index_kp_vec
         mup = mup_vec
