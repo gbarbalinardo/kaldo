@@ -252,8 +252,11 @@ def calculate_dirac_delta_crystal(omega, population, physical_mode, sigma_tf, br
                 dirac_delta_tf += 0.25 * (tf.gather_nd(population, coords_1) + 1) * (tf.gather_nd(population, coords_2) + 1) / (1 + population[index_k, mu])
         omegas_difference_tf = (omega[index_k, mu] + second_sign * tf.gather_nd(omega, coords_1) - tf.gather_nd(
                 omega, coords_2))
-        sigma = (sigma_tf[index_k, mu] + tf.gather_nd(sigma_tf, coords_1) - tf.gather_nd(
-                sigma_tf, coords_2))
+        if sigma_tf.shape == []:
+            sigma = sigma_tf
+        else:
+            sigma = (sigma_tf[index_k, mu] + tf.gather_nd(sigma_tf, coords_1) - tf.gather_nd(
+                    sigma_tf, coords_2))
         dirac_delta_tf = dirac_delta_tf * broadening_function(omegas_difference_tf, 2 * np.pi * sigma)
 
         index_kp = index_kp_vec
